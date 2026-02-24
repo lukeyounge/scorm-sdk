@@ -1,0 +1,46 @@
+{
+  "name": "@thinkshow/scorm-sdk",
+  "version": "0.1.0",
+  "description": "Lightweight SCORM tracking SDK for embedded web apps. Works with Thinkshow LMS (postMessage) and standard SCORM 1.2 LMSes.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "scorm-sdk": "./bin/scorm-sdk.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "scorm",
+    "lms",
+    "tracking",
+    "e-learning",
+    "thinkshow"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/node": "^25.3.0",
+    "tsup": "^8.0.0",
+    "typescript": "~5.8.2"
+  },
+  "dependencies": {
+    "archiver": "^7.0.0"
+  }
+}
