@@ -35,8 +35,11 @@ export async function pack(options: PackOptions): Promise<string> {
   // Dynamically import archiver (node-only dependency)
   const archiver = (await import('archiver')).default;
 
-  // Generate manifest
-  const manifestXml = generateManifest({ title, entryPoint });
+  // Collect all files from the build directory first
+  const files = collectFiles(inputDir);
+
+  // Generate manifest with the complete file list
+  const manifestXml = generateManifest({ title, entryPoint, files });
 
   // Write manifest to input dir temporarily
   const manifestPath = join(inputDir, 'imsmanifest.xml');
@@ -52,8 +55,10 @@ export async function pack(options: PackOptions): Promise<string> {
 
     archive.pipe(output);
 
-    // Add all files from build directory
-    const files = collectFiles(inputDir);
+    // Add manifest first (at root of zip)
+    archive.file(manifestPath, { name: 'imsmanifest.xml' });
+
+    // Add all build files
     for (const file of files) {
       const fullPath = join(inputDir, file);
       archive.file(fullPath, { name: file });

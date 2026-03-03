@@ -8,6 +8,8 @@ export interface ManifestOptions {
   description?: string;
   entryPoint?: string;
   version?: string;
+  /** All files in the package (relative paths). The entry point is always included. */
+  files?: string[];
 }
 
 export function generateManifest(options: ManifestOptions): string {
@@ -17,7 +19,21 @@ export function generateManifest(options: ManifestOptions): string {
     description = title,
     entryPoint = 'index.html',
     version = '1.0',
+    files = [],
   } = options;
+
+  // Build the complete file list: always include the entry point,
+  // then add all other files (excluding imsmanifest.xml itself)
+  const allFiles = new Set<string>([entryPoint]);
+  for (const f of files) {
+    if (f !== 'imsmanifest.xml') {
+      allFiles.add(f);
+    }
+  }
+
+  const fileElements = Array.from(allFiles)
+    .map((f) => `      <file href="${escapeXml(f)}" />`)
+    .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="${escapeXml(identifier)}"
@@ -39,7 +55,6 @@ export function generateManifest(options: ManifestOptions): string {
       <title>${escapeXml(title)}</title>
       <item identifier="item-1" identifierref="res-1">
         <title>${escapeXml(title)}</title>
-        <adlcp:prerequisites type="aicc_script"></adlcp:prerequisites>
       </item>
     </organization>
   </organizations>
@@ -49,7 +64,7 @@ export function generateManifest(options: ManifestOptions): string {
               type="webcontent"
               adlcp:scormtype="sco"
               href="${escapeXml(entryPoint)}">
-      <file href="${escapeXml(entryPoint)}" />
+${fileElements}
     </resource>
   </resources>
 
