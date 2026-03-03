@@ -5,8 +5,8 @@ import { resolve, basename } from "path";
 import { existsSync } from "fs";
 
 // src/cli/pack.ts
-import { createWriteStream, readdirSync, statSync, writeFileSync } from "fs";
-import { join, relative } from "path";
+import { createWriteStream, readdirSync, statSync, writeFileSync as writeFileSync2 } from "fs";
+import { join as join2, relative } from "path";
 
 // src/cli/manifest.ts
 function generateManifest(options) {
@@ -15,8 +15,16 @@ function generateManifest(options) {
     identifier = `thinkshow-${slugify(title)}-${Date.now()}`,
     description = title,
     entryPoint = "index.html",
-    version = "1.0"
+    version = "1.0",
+    files = []
   } = options;
+  const allFiles = /* @__PURE__ */ new Set([entryPoint]);
+  for (const f of files) {
+    if (f !== "imsmanifest.xml") {
+      allFiles.add(f);
+    }
+  }
+  const fileElements = Array.from(allFiles).map((f) => `      <file href="${escapeXml(f)}" />`).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <manifest identifier="${escapeXml(identifier)}"
           version="${escapeXml(version)}"
@@ -37,7 +45,6 @@ function generateManifest(options) {
       <title>${escapeXml(title)}</title>
       <item identifier="item-1" identifierref="res-1">
         <title>${escapeXml(title)}</title>
-        <adlcp:prerequisites type="aicc_script"></adlcp:prerequisites>
       </item>
     </organization>
   </organizations>
@@ -47,7 +54,7 @@ function generateManifest(options) {
               type="webcontent"
               adlcp:scormtype="sco"
               href="${escapeXml(entryPoint)}">
-      <file href="${escapeXml(entryPoint)}" />
+${fileElements}
     </resource>
   </resources>
 
@@ -60,11 +67,39 @@ function escapeXml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
+// src/cli/fixPaths.ts
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+function fixAbsolutePaths(inputDir, files) {
+  const htmlFiles = files.filter((f) => f.endsWith(".html"));
+  let totalFixes = 0;
+  for (const file of htmlFiles) {
+    const fullPath = join(inputDir, file);
+    const original = readFileSync(fullPath, "utf-8");
+    const fixed = original.replace(
+      /((?:src|href|action)\s*=\s*["'])\/(?!\/)(.*?["'])/gi,
+      "$1./$2"
+    );
+    if (fixed !== original) {
+      const count = countDifferences(original, fixed);
+      totalFixes += count;
+      writeFileSync(fullPath, fixed, "utf-8");
+      console.log(`  Fixed ${count} absolute path(s) in ${file}`);
+    }
+  }
+  return totalFixes;
+}
+function countDifferences(original, fixed) {
+  const pattern = /((?:src|href|action)\s*=\s*["'])\/(?!\/)/gi;
+  const matches = original.match(pattern);
+  return matches ? matches.length : 0;
+}
+
 // src/cli/pack.ts
 function collectFiles(dir, base = dir) {
   const files = [];
   for (const entry of readdirSync(dir)) {
-    const fullPath = join(dir, entry);
+    const fullPath = join2(dir, entry);
     const stat = statSync(fullPath);
     if (stat.isDirectory()) {
       files.push(...collectFiles(fullPath, base));
@@ -77,18 +112,24 @@ function collectFiles(dir, base = dir) {
 async function pack(options) {
   const { title, inputDir, outputFile, entryPoint = "index.html" } = options;
   const archiver = (await import("archiver")).default;
-  const manifestXml = generateManifest({ title, entryPoint });
-  const manifestPath = join(inputDir, "imsmanifest.xml");
-  writeFileSync(manifestPath, manifestXml, "utf-8");
+  const files = collectFiles(inputDir);
+  const fixes = fixAbsolutePaths(inputDir, files);
+  if (fixes > 0) {
+    console.log(`Rewrote ${fixes} absolute path(s) to relative for SCORM compatibility.
+`);
+  }
+  const manifestXml = generateManifest({ title, entryPoint, files });
+  const manifestPath = join2(inputDir, "imsmanifest.xml");
+  writeFileSync2(manifestPath, manifestXml, "utf-8");
   const output = createWriteStream(outputFile);
   const archive = archiver("zip", { zlib: { level: 9 } });
   return new Promise((resolve2, reject) => {
     output.on("close", () => resolve2(outputFile));
     archive.on("error", reject);
     archive.pipe(output);
-    const files = collectFiles(inputDir);
+    archive.file(manifestPath, { name: "imsmanifest.xml" });
     for (const file of files) {
-      const fullPath = join(inputDir, file);
+      const fullPath = join2(inputDir, file);
       archive.file(fullPath, { name: file });
     }
     archive.finalize();

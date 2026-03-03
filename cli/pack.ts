@@ -1,6 +1,7 @@
 import { createWriteStream, readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { generateManifest } from './manifest';
+import { fixAbsolutePaths } from './fixPaths';
 
 interface PackOptions {
   title: string;
@@ -37,6 +38,12 @@ export async function pack(options: PackOptions): Promise<string> {
 
   // Collect all files from the build directory first
   const files = collectFiles(inputDir);
+
+  // Rewrite absolute paths (e.g. /assets/...) to relative (./assets/...)
+  const fixes = fixAbsolutePaths(inputDir, files);
+  if (fixes > 0) {
+    console.log(`Rewrote ${fixes} absolute path(s) to relative for SCORM compatibility.\n`);
+  }
 
   // Generate manifest with the complete file list
   const manifestXml = generateManifest({ title, entryPoint, files });
